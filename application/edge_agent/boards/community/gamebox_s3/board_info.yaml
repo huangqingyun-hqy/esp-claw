@@ -1,0 +1,5 @@
+board: gamebox_s3
+chip: esp32s3
+version: 1.0.0
+description: "EDA AI Game Console (ESP32-S3-N16R8 core, 2.0inch ST7789 SPI LCD, DHT11, buttons)"
+manufacturer: "CUSTOM"

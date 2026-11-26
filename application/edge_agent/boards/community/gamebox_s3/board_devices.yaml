@@ -1,0 +1,62 @@
+version: 1.0.0
+# Devices Configuration for gamebox_s3
+
+devices:
+
+  # 2.0inch SPI LCD (HS20S010B module, ST7789 controller, 240x320)
+  # CS=GPIO11, DC=GPIO12, RST tied to core-board EN (so -1 here), BL=GPIO10 (ledc_backlight)
+  - name: display_lcd
+    chip: st7789
+    type: display_lcd
+    sub_type: spi
+    version: default
+    config:
+      mirror_x: false
+      mirror_y: false
+      swap_xy: false
+      invert_color: true
+      x_max: 240
+      y_max: 320
+      io_spi_config:
+        cs_gpio_num: 11
+        dc_gpio_num: 12
+        spi_mode: 0
+        pclk_hz: 40000000
+      lcd_panel_config:
+        reset_gpio_num: -1     # LCD RST wired to core-board EN, auto reset on power-up
+        rgb_ele_order: LCD_RGB_ELEMENT_ORDER_RGB
+        bits_per_pixel: 16
+        data_endian: LCD_RGB_DATA_ENDIAN_BIG
+        vendor_config: NULL
+    peripherals:
+      - name: spi_display
+
+  # Backlight brightness control
+  - name: lcd_brightness
+    type: ledc_ctrl
+    version: default
+    peripherals:
+      - name: ledc_backlight
+
+  # Battery voltage (vbat_adc=GPIO1, ADC1_CH0)
+  # R1/R30 = 100k/100k divider, actual voltage = ADC reading * 2
+  # Not registered as a board device: board manager has no 'adc' type;
+  # use lua_driver_adc at runtime (GPIO1, ADC1 channel 0).
+
+  # DHT11 temp/humidity (GPIO15) - driven by lua_module_environmental_sensor at runtime
+  # (DHT backend enabled in sdkconfig.defaults.board)
+
+  # Micro SD card slot, SPI mode (CS=16, MOSI=18, MISO=17, CLK=46)
+  - name: fs_sdcard
+    type: fs_fat
+    sub_type: spi
+    version: default
+    config:
+      mount_point: "/sdcard"
+      vfs_config:
+        format_if_mount_failed: false
+        max_files: 5
+      sub_config:
+        cs_gpio_num: 16
+    peripherals:
+      - name: spi_sdcard

@@ -1,0 +1,55 @@
+version: 1.0.0
+# Peripherals Configuration for gamebox_s3
+# Pin mapping source: SCH_Schematic1_1-P1_2026-11-24 + Netlist_Schematic1_2026-11-24.tel
+# (cross-verified against official ESP32-S3-DevKitC-1 V1 header pinout)
+
+peripherals:
+  # LCD SPI bus: MOSI=GPIO13, SCLK=GPIO14 (CS=11, DC=12 set in display device)
+  - name: spi_display
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI2_HOST
+        data0_io_num: 13       # MOSI
+        sclk_io_num: 14        # SCLK
+        max_transfer_sz: 6400  # 240 * 2 * 10 (10 lines RGB565)
+
+  # LCD backlight: BL=GPIO10, PWM dimming
+  - name: ledc_backlight
+    type: ledc
+    version: default
+    config:
+      gpio_num: 10
+      speed_mode: LEDC_LOW_SPEED_MODE
+      channel: 0
+      timer_sel: 0
+      duty: 1023
+      duty_resolution: LEDC_TIMER_10_BIT
+      output_invert: false
+
+  # Battery voltage ADC: vbat_adc=GPIO1 = ADC1_CH0 (R1/R30 100k divider)
+  # NOTE: board manager has no 'adc' standard peripheral type;
+  # read via lua_driver_adc at runtime instead.
+
+  # Audio codec control I2C: SDA=GPIO41, SCL=GPIO42 (codec model TBD)
+  - name: i2c_master
+    type: i2c
+    role: master
+    config:
+      port: 0
+      pins:
+        sda: 41
+        scl: 42
+
+  # SD card SPI bus: MOSI=GPIO18, MISO=GPIO17, CLK=GPIO46 (CS=16 in device)
+  - name: spi_sdcard
+    type: spi
+    role: master
+    config:
+      spi_bus_config:
+        spi_port: SPI3_HOST
+        data0_io_num: 18       # MOSI
+        miso_io_num: 17        # MISO
+        sclk_io_num: 46        # SCLK
+        max_transfer_sz: 4096
