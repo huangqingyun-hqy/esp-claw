@@ -196,6 +196,33 @@ static esp_err_t app_fs_init_system(void)
     return ESP_OK;
 }
 
+// Sum of all file sizes under base_path (recursive). Used to distinguish a
+// genuinely full filesystem (file bytes ~= used bytes) from a corrupt one
+// (used bytes unexplainable by any file). Returns -1 on walk error.
+static long long dir_total_file_bytes(const char *base_path)
+{
+    DIR *dir = opendir(base_path);
+    if (!dir) return -1;
+    long long sum = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        char path[256];
+        if (snprintf(path, sizeof(path), "%s/%s", base_path, entry->d_name) >= (int)sizeof(path)) continue;
+        struct stat st;
+        if (stat(path, &st) != 0) { sum = -1; break; }
+        if (S_ISDIR(st.st_mode)) {
+            long long sub = dir_total_file_bytes(path);
+            if (sub < 0) { sum = -1; break; }
+            sum += sub;
+        } else if (S_ISREG(st.st_mode)) {
+            sum += (long long)st.st_size;
+        }
+    }
+    closedir(dir);
+    return sum;
+}
+
 static esp_err_t app_fs_init_storage(void)
 {
     char recovery_path[64];
@@ -245,6 +272,35 @@ static esp_err_t app_fs_init_storage(void)
     esp_err_t rec = recover_missing_files(recovery_path, s_storage_base_path);
     if (rec != ESP_OK) {
         ESP_LOGW(TAG, "Recovery into flash fatfs incomplete: %s", esp_err_to_name(rec));
+    }
+
+    // 4. Self-heal: a partition that reports zero free bytes right after mount is
+    //    usually broken (corrupt FAT from an interrupted write, or a failed WL
+    //    format). Left alone, every write fails with ENOSPC and the runtime
+    //    crash-loops. Distinguish corruption from a genuinely full disk by
+    //    comparing used bytes against the bytes actually stored in files: if no
+    //    file can explain the usage, the FAT is corrupt and we reformat + re-seed.
+    //    A legitimately full partition (files explain the usage) is left intact.
+    uint64_t total_bytes = 0;
+    uint64_t free_bytes = 0;
+    if (esp_vfs_fat_info(s_storage_base_path, &total_bytes, &free_bytes) == ESP_OK &&
+        total_bytes > 0 && free_bytes == 0) {
+        long long file_bytes = dir_total_file_bytes(s_storage_base_path);
+        bool looks_corrupt = (file_bytes < 0) ||
+                             ((long long)total_bytes > file_bytes * 2);
+        if (!looks_corrupt) {
+            ESP_LOGW(TAG, "Storage full but usage is explained by stored files; not reformatting");
+        } else {
+            ESP_LOGW(TAG, "Storage reports 0 free bytes with unexplainable usage (files=%lld total=%llu) - reformatting",
+                     file_bytes, (unsigned long long)total_bytes);
+            err = esp_vfs_fat_spiflash_format_rw_wl(s_storage_base_path, APP_FS_STORAGE_PARTITION_LABEL);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Storage reformat failed: %s", esp_err_to_name(err));
+            } else {
+                rec = recover_missing_files(recovery_path, s_storage_base_path);
+                ESP_LOGW(TAG, "Re-seed after storage reformat: %s", esp_err_to_name(rec));
+            }
+        }
     }
 
     log_fatfs_info(s_storage_base_path);

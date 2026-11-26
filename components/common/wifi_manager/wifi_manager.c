@@ -433,6 +433,9 @@ esp_err_t wifi_manager_start(const wifi_manager_config_t *config)
         err = esp_wifi_start();
         if (err != ESP_OK) return err;
         s_wifi_started = true;
+        /* Disable Wi-Fi power save: avoids TCP stalls on large uploads over
+         * phone-hotspot links (LLM HTTP POST ESP_ERR_HTTP_WRITE_DATA). */
+        esp_wifi_set_ps(WIFI_PS_NONE);
     }
     return ESP_OK;
 }
@@ -451,6 +454,7 @@ esp_err_t wifi_manager_apply_sta_config(const wifi_manager_config_t *config)
         err = esp_wifi_start();
         if (err != ESP_OK) return err;
         s_wifi_started = true;
+        esp_wifi_set_ps(WIFI_PS_NONE);
     }
 
     if (!s_sta_configured) return ESP_OK;

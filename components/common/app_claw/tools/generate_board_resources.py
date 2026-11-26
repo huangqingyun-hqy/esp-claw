@@ -99,7 +99,7 @@ class BoardResources:
 
 
 def load_items(path, key):
-    document = mapping(yaml.safe_load(path.read_text()), str(path))
+    document = mapping(yaml.safe_load(path.read_text(encoding='utf-8')), str(path))
     if key not in document or set(document) - {key, 'version'}:
         raise BoardResourceError(f'{path}: expected only {key!r}; merge included/amended configuration first')
     items = sequence(document[key], f'{path}:{key}')
